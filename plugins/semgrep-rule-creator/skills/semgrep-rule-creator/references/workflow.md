@@ -8,28 +8,18 @@ Before writing any code:
 
 1. **Fetch external documentation** - See [Documentation](../SKILL.md#documentation) for required reading
 2. **Understand the exact bug pattern** - What vulnerability or issue should be detected?
-3. **Identify the target language** - Python, JavaScript, Java, Go, etc.
+3. **Identify the target language**
 4. **Determine the approach**:
    - **Taint mode**: Data flows from untrusted source to dangerous sink
    - **Pattern matching**: Syntactic patterns without data flow
 
 ### When to Use Taint Mode
 
-Use `mode: taint` when detecting:
-- SQL injection (user input → database query)
-- Command injection (user input → shell execution)
-- XSS (user input → HTML output)
-- Path traversal (user input → file operations)
-- SSRF (user input → HTTP requests)
+Taint mode is a powerful feature in Semgrep that can track the flow of data from one location to another. By using taint mode, you can:
 
-### When to Use Pattern Matching
-
-Use basic patterns when detecting:
-- Use of deprecated/dangerous functions
-- Hardcoded credentials
-- Missing security headers
-- Configuration issues
-- Code style violations
+- **Track data flow across multiple variables**: Trace how data moves across different variables, functions, components, and identify insecure flow paths (e.g., situations where a specific sanitizer is not used).
+- **Find injection vulnerabilities**: Identify injection vulnerabilities such as SQL injection, command injection, and XSS attacks.
+- **Write simple and resilient Semgrep rules**: Simplify rules that are resilient to code patterns nested in if statements, loops, and other structures.
 
 ## Step 2: Create Test Cases First
 
@@ -45,19 +35,7 @@ Use basic patterns when detecting:
 
 ### Test Annotations
 
-```python
-# ruleid: my-rule-id
-vulnerable_code_here()  # This line MUST be flagged
-
-# ok: my-rule-id
-safe_code_here()  # This line must NOT be flagged
-
-# todoruleid: my-rule-id
-known_limitation()  # Should match but doesn't yet
-
-# todook: my-rule-id
-known_false_positive()  # Matches but shouldn't
-```
+See [quick-reference.md](quick-reference.md#test-file-annotations) for annotation syntax (`ruleid:`, `ok:`, `todoruleid:`, `todook:`).
 
 **CRITICAL**: The comment must be on the line IMMEDIATELY BEFORE the code. Semgrep reports findings on the line after the annotation.
 
@@ -69,6 +47,8 @@ Include test cases for:
 - ✅ Edge cases and variations
 - ✅ Different coding styles
 - ✅ Sanitized/validated input (must not match)
+- ✅ Unrelated code (must not match) - normal code with no relation to the rule's target pattern
+- ✅ Nested structures (e.g., inside if statements, loops, try/catch blocks, callbacks)
 
 ## Step 3: Analyze AST Structure
 
@@ -87,62 +67,7 @@ Example output helps understand:
 
 Choose the appropriate pattern operators and write your rule.
 
-### Pattern Operators
-
-#### Basic Pattern Matching
-
-```yaml
-# Single pattern
-pattern: dangerous_function(...)
-
-# All must match (AND)
-patterns:
-  - pattern: $FUNC(...)
-  - metavariable-regex:
-      metavariable: $FUNC
-      regex: ^(eval|exec)$
-
-# Any can match (OR)
-pattern-either:
-  - pattern: eval(...)
-  - pattern: exec(...)
-```
-
-#### Scope Operators
-
-```yaml
-patterns:
-  - pattern-inside: |
-      def $FUNC(...):
-        ...
-  - pattern: return $SENSITIVE
-  - pattern-not-inside: |
-      if $CHECK:
-        ...
-```
-
-#### Metavariable Filters
-
-```yaml
-patterns:
-  - pattern: $OBJ.$METHOD(...)
-  - metavariable-regex:
-      metavariable: $METHOD
-      regex: ^(execute|query|run)$
-  - metavariable-pattern:
-      metavariable: $OBJ
-      pattern: db
-```
-
-#### Focus Metavariable
-
-Report finding on specific part of match:
-
-```yaml
-patterns:
-  - pattern: $FUNC($ARG, ...)
-  - focus-metavariable: $ARG
-```
+For pattern operator syntax (basic matching, scope operators, metavariable filters, focus), see [quick-reference.md](quick-reference.md).
 
 ### Taint Rules
 
@@ -395,7 +320,7 @@ patterns:
 semgrep --test --config rule.yaml test-file
 ```
 
-**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences.
+**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences. If any test fails, revert the optimization that caused it.
 
 **Task complete ONLY when**: All tests pass after optimization.
 

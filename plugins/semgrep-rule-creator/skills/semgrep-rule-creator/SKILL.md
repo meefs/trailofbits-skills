@@ -28,8 +28,6 @@ Create production-quality Semgrep rules with proper testing and validation.
 Do NOT use this skill for:
 - Running existing Semgrep rulesets
 - General static analysis without custom rules (use `static-analysis` plugin)
-- One-off scans where existing rules suffice
-- Non-Semgrep pattern matching needs
 
 ## Rationalizations to Reject
 
@@ -136,30 +134,7 @@ Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Run tests | `cd <rule-dir> && semgrep --test --config rule.yaml test-file` |
-| Validate YAML | `semgrep --validate --config rule.yaml` |
-| Dump AST | `semgrep --dump-ast -l <lang> <file>` |
-| Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
-| Run single rule | `semgrep -f rule.yaml <file>` |
-
-| Pattern Operator | Purpose |
-|------------------|---------|
-| `pattern` | Match single pattern |
-| `patterns` | AND - all must match |
-| `pattern-either` | OR - any can match |
-| `pattern-not` | Exclude matches |
-| `pattern-inside` | Must be inside scope |
-| `metavariable-regex` | Filter by regex |
-| `focus-metavariable` | Report on specific part |
-
-| Taint Component | Purpose |
-|-----------------|---------|
-| `pattern-sources` | Where tainted data originates |
-| `pattern-sinks` | Dangerous functions receiving taint |
-| `pattern-sanitizers` | Functions that clean taint |
-| `pattern-propagators` | Custom taint propagation |
+For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
 
 ## Workflow
 
@@ -173,9 +148,7 @@ Before writing any rule, see [Documentation](#documentation) for required readin
 
 **Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe patterns. Rules written without tests often have hidden false positives (matching safe code) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
-Create directory and test file with annotations:
-- `<comment> ruleid: <id>` - Line BEFORE code that SHOULD match (use language-appropriate comment syntax: `#` for Python, `//` for JS/TS/Java/Go/C)
-- `<comment> ok: <id>` - Line BEFORE code that should NOT match
+Create directory and test file with annotations (`# ruleid:`, `# ok:`, etc.). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
 
 The annotation line must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
 
@@ -206,42 +179,7 @@ semgrep --dataflow-traces -f rule.yaml test-file
 
 ### 6. Optimize the Rule
 
-**After all tests pass**, analyze the rule for redundant or unnecessary patterns:
-
-**Common optimizations:**
-- **Subset patterns**: `func(...)` already matches `func()` - remove the more specific one
-- **Redundant ellipsis**: `func($X, ...)` covers `func($X)` - keep only the general form
-
-**Example - Before optimization:**
-```yaml
-pattern-either:
-  - pattern: hashlib.md5(...)
-  - pattern: md5(...)
-  - pattern: hashlib.new("md5", ...)
-  - pattern: hashlib.new('md5', ...)    # Redundant - quotes equivalent in Python
-  - pattern: hashlib.new("md5")         # Redundant - covered by ... variant
-  - pattern: hashlib.new('md5')         # Redundant - quotes + covered
-```
-
-**After optimization:**
-```yaml
-pattern-either:
-  - pattern: hashlib.md5(...)
-  - pattern: md5(...)
-  - pattern: hashlib.new("md5", ...)    # Covers all quote/argument variants
-```
-
-**Optimization checklist:**
-1. Remove patterns differing only in quote style (`"` vs `'`)
-2. Remove patterns that are subsets of more general patterns (with `...`)
-3. Consolidate similar patterns using metavariables where possible
-4. **Re-run tests after optimization** to ensure no regressions
-
-```bash
-semgrep --test --config rule.yaml test-file
-```
-
-**Final verification**: Output MUST show "All tests passed" after optimization. If any test fails, revert the optimization that caused it.
+After all tests pass, remove redundant patterns (quote variants, ellipsis subsets). See [workflow.md]({baseDir}/references/workflow.md#step-6-optimize-the-rule) for detailed optimization examples and checklist.
 
 **Task complete ONLY when**: All tests pass after optimization.
 
@@ -249,7 +187,6 @@ semgrep --test --config rule.yaml test-file
 
 - **Read documentation first**: See [Documentation](#documentation) before creating rules
 - **Tests must pass 100%**: Do not finish until all tests pass
-- **`ruleid:` placement**: Comment goes on line IMMEDIATELY BEFORE the flagged code
 - **Avoid generic patterns**: Rules must be specific, not match broad patterns
 - **Prioritize taint mode**: For data flow vulnerabilities
 
